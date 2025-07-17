@@ -1,0 +1,51 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.env
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Data files - exclude entire data directory
+data/
+/data/
+
+# Notebooks - exclude entire folder
+notebooks/
+
+# VS Code
+.vscode/*
+!.vscode/tasks.json
+
+# Logs
+*.log
+
+# Local configuration
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Alpaca API credentials
+.env
+
+# Cached API responses
+.cache/
+
+alpaca_stock_eda.egg-info/
+/alpaca_stock_eda.egg-info/
+
+.github/copilot-instructions.md
+.vscode/tasks.json
