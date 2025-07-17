@@ -122,5 +122,5 @@ Without proper credentials, you'll see the error: `Missing required Alpaca API c
 
 ## License
 MIT
-
+## deployement
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://edaomarwaleed5234.streamlit.app/)
