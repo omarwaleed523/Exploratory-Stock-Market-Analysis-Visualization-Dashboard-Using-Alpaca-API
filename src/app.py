@@ -49,7 +49,14 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 # Initialize services
-data_collector = StockDataCollector()
+try:
+    # Initialize API client
+    api_client = RateLimitedAlpacaClient()
+    data_collector = StockDataCollector()
+    api_initialized = True
+except Exception as e:
+    logger.error(f"Failed to initialize API client: {e}")
+    api_initialized = False
 
 # App configuration
 st.set_page_config(
@@ -60,6 +67,91 @@ st.set_page_config(
 
 # App title and description
 st.title("📊 Stock Market EDA Dashboard")
+
+# Check if API client initialized successfully
+if not api_initialized:
+    st.error("⚠️ Failed to initialize Alpaca API client. Please check your credentials.")
+    
+    # Provide troubleshooting information
+    st.markdown("""
+    ### Troubleshooting
+    
+    The application could not connect to the Alpaca API. This could be due to:
+    
+    1. **Missing credentials** - Make sure you have set up your API credentials either:
+       - In the `.streamlit/secrets.toml` file (for local development)
+       - In the Streamlit Cloud dashboard (for deployed app)
+       
+    2. **Incorrect credentials** - Verify that your API key and secret are correct
+    
+    3. **Network issues** - Check your internet connection
+    
+    #### How to set up credentials
+    
+    For local development:
+    - Create a `.streamlit/secrets.toml` file with:
+    ```toml
+    [alpaca]
+    api_key_id = "YOUR_API_KEY"
+    api_secret_key = "YOUR_API_SECRET"
+    api_base_url = "https://paper-api.alpaca.markets"
+    data_url = "https://data.alpaca.markets"
+    ```
+    
+    For Streamlit Cloud deployment:
+    - Go to your app dashboard
+    - Click on "Secrets"
+    - Add the same configuration as above
+    """)
+    
+    # Show a button to run diagnostic
+    if st.button("Run Diagnostic Test"):
+        st.info("Running diagnostic test to check credential availability...")
+        try:
+            import streamlit as st_check
+            
+            if hasattr(st_check, 'secrets'):
+                st.success("✅ Streamlit secrets are available")
+                
+                if 'alpaca' in st_check.secrets:
+                    st.success("✅ 'alpaca' section found in secrets")
+                    
+                    # Check each required key
+                    alpaca_keys = ['api_key_id', 'api_secret_key', 'api_base_url', 'data_url']
+                    missing_keys = []
+                    
+                    for key in alpaca_keys:
+                        if key in st_check.secrets.alpaca:
+                            st.success(f"✅ '{key}' is set in secrets")
+                        else:
+                            st.error(f"❌ '{key}' is missing in secrets")
+                            missing_keys.append(key)
+                else:
+                    st.error("❌ 'alpaca' section not found in secrets")
+            else:
+                st.error("❌ Streamlit secrets are not available")
+                
+            # Check environment variables
+            st.subheader("Environment Variables")
+            env_vars = {
+                'ALPACA_API_KEY_ID': os.getenv('ALPACA_API_KEY_ID'),
+                'ALPACA_API_SECRET_KEY': os.getenv('ALPACA_API_SECRET_KEY'),
+                'ALPACA_API_BASE_URL': os.getenv('ALPACA_API_BASE_URL'),
+                'ALPACA_DATA_URL': os.getenv('ALPACA_DATA_URL')
+            }
+            
+            for key, value in env_vars.items():
+                if value:
+                    st.success(f"✅ '{key}' is set in environment variables")
+                else:
+                    st.warning(f"⚠️ '{key}' is not set in environment variables")
+                    
+        except Exception as diag_error:
+            st.error(f"Diagnostic error: {str(diag_error)}")
+    
+    # Stop rendering the rest of the app
+    st.stop()
+
 st.markdown("""
 This dashboard provides exploratory data analysis on stock market data using the Alpaca API.
 Select stocks, timeframes, and analysis tools to visualize market trends and patterns.

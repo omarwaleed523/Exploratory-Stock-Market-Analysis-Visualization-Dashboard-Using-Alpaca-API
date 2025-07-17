@@ -33,38 +33,103 @@ class RateLimitedAlpacaClient:
                                   slightly under the 200 limit to provide a safety buffer)
         """
         load_dotenv()
+        logger.info("Initializing Alpaca API client...")
         
-        # Try to get credentials from Streamlit secrets first, then fall back to env vars
+        # Detailed credential diagnostics
+        self.api_key = None
+        self.api_secret = None
+        self.base_url = None
+        self.data_url = None
+        
+        # Try to get credentials from Streamlit secrets first
+        streamlit_creds_found = False
         try:
             import streamlit as st
-            if 'alpaca' in st.secrets:
-                self.api_key = st.secrets.alpaca.api_key_id
-                self.api_secret = st.secrets.alpaca.api_secret_key
-                self.base_url = st.secrets.alpaca.api_base_url
-                self.data_url = st.secrets.alpaca.data_url
-                logger.info("Using Streamlit secrets for Alpaca API credentials")
+            if hasattr(st, 'secrets'):
+                logger.info("Streamlit is available and secrets object exists")
+                
+                if 'alpaca' in st.secrets:
+                    logger.info("'alpaca' section found in Streamlit secrets")
+                    
+                    # Check each required key
+                    missing_keys = []
+                    for key in ['api_key_id', 'api_secret_key', 'api_base_url']:
+                        if key not in st.secrets.alpaca:
+                            missing_keys.append(key)
+                    
+                    if missing_keys:
+                        logger.warning(f"Missing keys in Streamlit secrets: {', '.join(missing_keys)}")
+                    else:
+                        # All keys present, set credentials
+                        self.api_key = st.secrets.alpaca.api_key_id
+                        self.api_secret = st.secrets.alpaca.api_secret_key
+                        self.base_url = st.secrets.alpaca.api_base_url
+                        self.data_url = st.secrets.alpaca.get('data_url', 'https://data.alpaca.markets')
+                        streamlit_creds_found = True
+                        logger.info("Successfully loaded credentials from Streamlit secrets")
+                else:
+                    logger.warning("'alpaca' section not found in Streamlit secrets")
+                    available_sections = list(st.secrets.keys()) if hasattr(st.secrets, 'keys') else []
+                    logger.info(f"Available sections in secrets: {available_sections}")
             else:
-                raise ImportError("Streamlit secrets not available")
-        except (ImportError, AttributeError):
-            # Fall back to environment variables
+                logger.warning("Streamlit secrets attribute not found")
+        except ImportError:
+            logger.info("Streamlit module not available")
+        except Exception as e:
+            logger.warning(f"Error accessing Streamlit secrets: {str(e)}")
+        
+        # Fall back to environment variables if Streamlit secrets not available
+        if not streamlit_creds_found:
+            logger.info("Falling back to environment variables")
             self.api_key = os.getenv('ALPACA_API_KEY_ID')
             self.api_secret = os.getenv('ALPACA_API_SECRET_KEY')
             self.base_url = os.getenv('ALPACA_API_BASE_URL')
-            self.data_url = os.getenv('ALPACA_DATA_URL', 'https://data.alpaca.markets/v2')
-            logger.info("Using environment variables for Alpaca API credentials")
+            self.data_url = os.getenv('ALPACA_DATA_URL', 'https://data.alpaca.markets')
+            
+            # Log what we found
+            logger.info(f"API Key from env: {'Found' if self.api_key else 'Not found'}")
+            logger.info(f"API Secret from env: {'Found' if self.api_secret else 'Not found'}")
+            logger.info(f"Base URL from env: {'Found' if self.base_url else 'Not found'}")
+            logger.info(f"Data URL from env: {'Found' if self.data_url else 'Using default'}")
         
+        # Check if we have the minimum required credentials
         if not all([self.api_key, self.api_secret, self.base_url]):
-            raise ValueError("API credentials not found. Please set credentials either in Streamlit secrets "
-                            "(.streamlit/secrets.toml) or in environment variables (.env file).")
+            missing = []
+            if not self.api_key: missing.append("API Key")
+            if not self.api_secret: missing.append("API Secret")
+            if not self.base_url: missing.append("Base URL")
+            
+            error_msg = f"Missing required Alpaca API credentials: {', '.join(missing)}. " + \
+                        "Please set credentials either in Streamlit secrets " + \
+                        "(.streamlit/secrets.toml) or in environment variables (.env file)."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
+        
+        # Log successful initialization
+        logger.info(f"Using API Base URL: {self.base_url}")
+        logger.info(f"Using Data URL: {self.data_url}")
         
         # Create Alpaca API client
-        self.api = tradeapi.REST(
-            key_id=self.api_key,
-            secret_key=self.api_secret,
-            base_url=self.base_url,
-            # Don't specify api_version if it's already in the base_url
-            # api_version='v2'
-        )
+        try:
+            self.api = tradeapi.REST(
+                key_id=self.api_key,
+                secret_key=self.api_secret,
+                base_url=self.base_url,
+                # Don't specify api_version if it's already in the base_url
+            )
+            logger.info("Successfully created Alpaca REST client")
+            
+            # Perform a simple API call to validate credentials
+            try:
+                _ = self.api.get_account()
+                logger.info("✅ API credentials validated successfully")
+            except Exception as e:
+                logger.warning(f"⚠️ API credential validation failed: {str(e)}")
+                logger.warning("The client is initialized but API credentials may not be valid")
+                # We don't raise here since the credentials might still work for data endpoints
+        except Exception as e:
+            logger.error(f"Failed to create Alpaca REST client: {str(e)}")
+            raise ValueError(f"Failed to initialize Alpaca API client: {str(e)}")
         
         # Rate limiting parameters
         self.max_calls_per_minute = max_calls_per_minute
@@ -140,18 +205,21 @@ class RateLimitedAlpacaClient:
         logger.info(f"Fetching {timeframe} bars for {len(symbols)} symbols: {', '.join(symbols[:5])}" + 
                    (f"... and {len(symbols) - 5} more" if len(symbols) > 5 else ""))
         
-        try:
-            # Process one symbol at a time to avoid API formatting issues
-            all_bars = {}
+        # Format dates as YYYY-MM-DD which Alpaca accepts
+        start_str = start.strftime('%Y-%m-%d')
+        end_str = end.strftime('%Y-%m-%d')
+        
+        # Process one symbol at a time to avoid API formatting issues
+        all_bars = {}
+        errors = {}
+        
+        for symbol in symbols:
+            self._check_rate_limit()  # Check rate limit before each symbol
             
-            # Format dates as YYYY-MM-DD which Alpaca accepts
-            start_str = start.strftime('%Y-%m-%d')
-            end_str = end.strftime('%Y-%m-%d')
-            
-            for symbol in symbols:
-                self._check_rate_limit()  # Check rate limit before each symbol
-                
+            try:
                 # Get bars for this symbol
+                logger.debug(f"Requesting {timeframe} bars for {symbol} from {start_str} to {end_str}")
+                
                 bars = self.api.get_bars(
                     symbol,
                     timeframe,
@@ -163,9 +231,12 @@ class RateLimitedAlpacaClient:
                 )
                 
                 # Process the bars
-                if symbol not in all_bars:
+                if len(bars) == 0:
+                    logger.warning(f"No data returned for {symbol} in timeframe {timeframe}")
                     all_bars[symbol] = []
+                    continue
                 
+                all_bars[symbol] = []
                 for bar in bars:
                     all_bars[symbol].append({
                         'timestamp': bar.t,
@@ -175,12 +246,29 @@ class RateLimitedAlpacaClient:
                         'close': bar.c,
                         'volume': bar.v
                     })
-            
-            return all_bars
-            
-        except Exception as e:
-            logger.error(f"Error fetching bars: {e}")
-            raise
+                
+                logger.info(f"Successfully retrieved {len(all_bars[symbol])} bars for {symbol}")
+                
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"Error fetching bars for {symbol}: {error_msg}")
+                errors[symbol] = error_msg
+                all_bars[symbol] = []  # Empty list for this symbol
+        
+        # Check if we got any data
+        total_bars = sum(len(bars) for bars in all_bars.values())
+        if total_bars == 0:
+            if errors:
+                error_details = "; ".join(f"{symbol}: {error}" for symbol, error in errors.items())
+                raise ValueError(f"Failed to retrieve any data. Errors: {error_details}")
+            else:
+                raise ValueError(f"No data available for the selected symbols and timeframe")
+        
+        # If some symbols had errors but others succeeded, log a warning
+        if errors and total_bars > 0:
+            logger.warning(f"Retrieved {total_bars} bars total, but {len(errors)} symbols had errors")
+        
+        return all_bars
     
     def get_latest_trade(self, symbol: str) -> Dict[str, Any]:
         """

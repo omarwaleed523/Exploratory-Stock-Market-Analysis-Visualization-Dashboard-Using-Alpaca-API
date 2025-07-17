@@ -23,32 +23,67 @@ This project performs exploratory data analysis on stock market data using the A
    ```
    pip install -r requirements.txt
    ```
-3. Set up your Alpaca API credentials in a `.env` file:
+3. Set up your Alpaca API credentials using one of these methods:
+   
+   **Option 1: Using .env file (for local development)**
+   Create a `.env` file in the project root:
    ```
    ALPACA_API_KEY_ID=your_key_here
    ALPACA_API_SECRET_KEY=your_secret_here
    ALPACA_API_BASE_URL=https://paper-api.alpaca.markets
    ALPACA_DATA_URL=https://data.alpaca.markets
    ```
+   
+   **Option 2: Using Streamlit secrets (for Streamlit Cloud)**
+   Create a `.streamlit/secrets.toml` file:
+   ```toml
+   [alpaca]
+   api_key_id = "your_key_here"
+   api_secret_key = "your_secret_here"
+   api_base_url = "https://paper-api.alpaca.markets"
+   data_url = "https://data.alpaca.markets"
+   ```
+
 4. Run the application using one of the methods below
 
 ## Deployment
-When deploying the application to a hosting service:
+The application supports deployment to Streamlit Cloud and other platforms.
 
-1. **DO NOT** commit your `.env` file to version control
-2. Set the following environment variables in your deployment platform's settings:
-   - `ALPACA_API_KEY_ID`
-   - `ALPACA_API_SECRET_KEY`
-   - `ALPACA_API_BASE_URL`
-   - `ALPACA_DATA_URL`
+### Streamlit Cloud Deployment
+1. Fork this repository to your GitHub account
+2. Create a new app in [Streamlit Cloud](https://share.streamlit.io/)
+3. Connect it to your GitHub repository
+4. Set the main file path to `src/app.py`
+5. In the Streamlit Cloud dashboard, add your secrets:
+   - Go to "Advanced Settings" > "Secrets"
+   - Add the following configuration in TOML format:
+   ```toml
+   [alpaca]
+   api_key_id = "your_key_here"
+   api_secret_key = "your_secret_here"
+   api_base_url = "https://paper-api.alpaca.markets"
+   data_url = "https://data.alpaca.markets"
+   ```
+6. Deploy the app
 
-Different platforms handle this differently:
-- **Heroku**: Use "Config Vars" in the settings
-- **Streamlit Cloud**: Use Secrets Management
-- **AWS/Azure**: Use environment variables in your service configuration
-- **Docker**: Pass environment variables in your docker-compose file or run command
+### Other Deployment Options
+When deploying to other platforms:
 
-Without these environment variables, you'll get the error: `API credentials not found`.
+1. **DO NOT** commit your `.env` or `.streamlit/secrets.toml` files to version control
+2. Set the environment variables according to your platform:
+   - **Heroku**: Use "Config Vars" in settings
+   - **AWS/Azure**: Use environment variables in service configuration
+   - **Docker**: Pass environment variables in docker-compose or run command
+
+### Troubleshooting Deployment
+If you see credential errors after deployment:
+
+1. Verify your API credentials are correctly set up in your deployment platform
+2. Check that the format matches what the application expects
+3. For Streamlit Cloud, ensure the secrets section is named `[alpaca]` (case sensitive)
+4. Run the diagnostic script `streamlit run debug.py` locally to verify credential detection
+
+Without proper credentials, you'll see the error: `Missing required Alpaca API credentials`.
 
 ## Running the Application
 - **Streamlit Dashboard**: Run `streamlit run src/app.py`
@@ -63,7 +98,11 @@ Without these environment variables, you'll get the error: `API credentials not 
   - `visualization.py`: Visualization components
   - `app.py`: Streamlit dashboard application
   - `data_collection_cli.py`: Command-line interface for data collection
-- `.env`: API credentials (not tracked in git)
+- `.env`: API credentials for local development (not tracked in git)
+- `.streamlit/secrets.toml`: Streamlit Cloud credentials (not tracked in git)
+- `debug.py`: Diagnostic tool for checking credential configuration
+- `setup.sh`, `Procfile`, `runtime.txt`: Deployment helper files
+- `requirements.txt`: Python dependencies
 
 ## Technical Features
 - **Rate-Limited API Client**: Custom client that respects Alpaca's rate limits
