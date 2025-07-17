@@ -32,6 +32,24 @@ This project performs exploratory data analysis on stock market data using the A
    ```
 4. Run the application using one of the methods below
 
+## Deployment
+When deploying the application to a hosting service:
+
+1. **DO NOT** commit your `.env` file to version control
+2. Set the following environment variables in your deployment platform's settings:
+   - `ALPACA_API_KEY_ID`
+   - `ALPACA_API_SECRET_KEY`
+   - `ALPACA_API_BASE_URL`
+   - `ALPACA_DATA_URL`
+
+Different platforms handle this differently:
+- **Heroku**: Use "Config Vars" in the settings
+- **Streamlit Cloud**: Use Secrets Management
+- **AWS/Azure**: Use environment variables in your service configuration
+- **Docker**: Pass environment variables in your docker-compose file or run command
+
+Without these environment variables, you'll get the error: `API credentials not found`.
+
 ## Running the Application
 - **Streamlit Dashboard**: Run `streamlit run src/app.py`
 - **Data Collection**: Run `python src/data_collection_cli.py`
