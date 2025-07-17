@@ -35,7 +35,6 @@ This project performs exploratory data analysis on stock market data using the A
   - `analysis.py`: Data analysis functions
   - `visualization.py`: Visualization components
   - `app.py`: Streamlit application
-- `notebooks/`: Jupyter notebooks for EDA
 - `data/`: Cached data storage
 - `.env`: API credentials (not tracked in git)
 
