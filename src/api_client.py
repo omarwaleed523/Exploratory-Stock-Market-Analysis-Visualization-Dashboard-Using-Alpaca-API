@@ -34,15 +34,28 @@ class RateLimitedAlpacaClient:
         """
         load_dotenv()
         
-        # API credentials
-        self.api_key = os.getenv('ALPACA_API_KEY_ID')
-        self.api_secret = os.getenv('ALPACA_API_SECRET_KEY')
-        self.base_url = os.getenv('ALPACA_API_BASE_URL')
-        self.data_url = os.getenv('ALPACA_DATA_URL', 'https://data.alpaca.markets/v2')
+        # Try to get credentials from Streamlit secrets first, then fall back to env vars
+        try:
+            import streamlit as st
+            if 'alpaca' in st.secrets:
+                self.api_key = st.secrets.alpaca.api_key_id
+                self.api_secret = st.secrets.alpaca.api_secret_key
+                self.base_url = st.secrets.alpaca.api_base_url
+                self.data_url = st.secrets.alpaca.data_url
+                logger.info("Using Streamlit secrets for Alpaca API credentials")
+            else:
+                raise ImportError("Streamlit secrets not available")
+        except (ImportError, AttributeError):
+            # Fall back to environment variables
+            self.api_key = os.getenv('ALPACA_API_KEY_ID')
+            self.api_secret = os.getenv('ALPACA_API_SECRET_KEY')
+            self.base_url = os.getenv('ALPACA_API_BASE_URL')
+            self.data_url = os.getenv('ALPACA_DATA_URL', 'https://data.alpaca.markets/v2')
+            logger.info("Using environment variables for Alpaca API credentials")
         
         if not all([self.api_key, self.api_secret, self.base_url]):
-            raise ValueError("API credentials not found. Please set ALPACA_API_KEY_ID, "
-                            "ALPACA_API_SECRET_KEY, and ALPACA_API_BASE_URL in your .env file.")
+            raise ValueError("API credentials not found. Please set credentials either in Streamlit secrets "
+                            "(.streamlit/secrets.toml) or in environment variables (.env file).")
         
         # Create Alpaca API client
         self.api = tradeapi.REST(

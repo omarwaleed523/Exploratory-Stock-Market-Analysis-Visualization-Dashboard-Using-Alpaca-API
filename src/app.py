@@ -12,13 +12,31 @@ from datetime import datetime, timedelta, timezone
 import pytz
 from dotenv import load_dotenv
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Add parent directory to the path to make imports work properly
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from src.api_client import RateLimitedAlpacaClient
-from src.data_collection import StockDataCollector
-from src.analysis import StockAnalyzer
-from src.visualization import StockVisualizer
+# Import project modules - try both relative and absolute imports to ensure compatibility
+try:
+    # For deployment environment
+    from api_client import RateLimitedAlpacaClient
+    from data_collection import StockDataCollector
+    from analysis import StockAnalyzer
+    from visualization import StockVisualizer
+    logger.info("Using relative imports (deployment mode)")
+except ImportError:
+    # For local development
+    from src.api_client import RateLimitedAlpacaClient
+    from src.data_collection import StockDataCollector
+    from src.analysis import StockAnalyzer
+    from src.visualization import StockVisualizer
+    logger.info("Using absolute imports (local development mode)")
 
 # Configure logging
 logging.basicConfig(
